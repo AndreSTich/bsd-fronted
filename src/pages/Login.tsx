@@ -18,7 +18,6 @@ export default function Login() {
         password: password,
       });
 
-      // Сохраняем токен, роль и ID для разграничения доступа
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('role', response.data.role);
       localStorage.setItem('employeeId', String(response.data.employeeId));

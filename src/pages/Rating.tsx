@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/apiClient';
 
 // Описываем структуру ответа от бэкенда на основе вашего Swagger
@@ -10,6 +11,12 @@ interface RatingDto {
 }
 
 export default function Rating() {
+  const navigate = useNavigate();
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate('/login');
+  }
+
   const [leaders, setLeaders] = useState<RatingDto[]>([]);
   const [error, setError] = useState('');
 
@@ -30,13 +37,32 @@ export default function Rating() {
 
   return (
     <div style={{ maxWidth: '800px', margin: '40px auto', padding: '0 20px', fontFamily: 'sans-serif' }}>
+      {/* Шапка: заголовок слева, кнопки навигации и выхода справа */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h2>Топ сотрудников</h2>
-        <a href="/calendar" style={{ textDecoration: 'none', color: '#007bff', fontWeight: 'bold' }}>
-          ← Вернуться в календарь
-        </a>
+        
+        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+          <a href="/calendar" style={{ textDecoration: 'none', color: '#007bff', fontWeight: 'bold' }}>
+            ← Вернуться в календарь
+          </a>
+          <button
+            onClick={handleLogout}
+            style={{
+              padding: '6px 12px',
+              backgroundColor: '#dc3545',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+            }}
+          >
+            Выйти
+          </button>
+        </div>
       </div>
 
+      {/* Вывод ошибки или таблицы лидеров */}
       {error ? (
         <div style={{ color: 'red' }}>{error}</div>
       ) : (

@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
@@ -22,6 +23,12 @@ interface AttendanceDto {
 }
 
 export default function Calendar() {
+  const navigate = useNavigate();
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate('/login');
+  }
+
   const [events, setEvents] = useState<any[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<EventDto | null>(null);
   const [participants, setParticipants] = useState<AttendanceDto[]>([]);
@@ -30,7 +37,6 @@ export default function Calendar() {
 
   const calendarRef = useRef<FullCalendar | null>(null);
 
-  // Получаем текущую роль пользователя
   const role = localStorage.getItem('role') || '';
   const canManageAttendance = role === 'штаб' || role === 'командир';
 
@@ -130,30 +136,82 @@ export default function Calendar() {
   };
 
   return (
-    <div style={{ maxWidth: '1000px', margin: '40px auto', padding: '0 20px', fontFamily: 'sans-serif' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2>Календарь мероприятий {canManageAttendance && <span style={{ fontSize: '14px', color: '#666' }}>({role})</span>}</h2>
-        <a href="/rating" style={{ textDecoration: 'none', color: '#007bff', fontWeight: 'bold' }}>
-          Перейти к рейтингу →
-        </a>
+    <div
+      style={{
+        maxWidth: '1200px',
+        width: '100%',
+        margin: '20px auto',
+        padding: '0 20px',
+        fontFamily: 'sans-serif',
+        boxSizing: 'border-box',
+        display: 'flex',
+        flexDirection: 'column', // Гарантирует расположение шапки строго над календарем
+        gap: '20px',
+      }}
+    >
+      {/* Верхняя панель: заголовок слева, навигация и выход справа */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          width: '100%',
+          borderBottom: '1px solid #eee',
+          paddingBottom: '15px',
+        }}
+      >
+        <h2 style={{ margin: 0 }}>
+          Календарь мероприятий{' '}
+          {canManageAttendance && (
+            <span style={{ fontSize: '14px', color: '#666', fontWeight: 'normal' }}>
+              ({role})
+            </span>
+          )}
+        </h2>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <a
+            href="/rating"
+            style={{ textDecoration: 'none', color: '#007bff', fontWeight: 'bold' }}
+          >
+            Перейти к рейтингу →
+          </a>
+          <button
+            onClick={handleLogout}
+            style={{
+              padding: '6px 14px',
+              backgroundColor: '#dc3545',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+            }}
+          >
+            Выйти
+          </button>
+        </div>
       </div>
 
-      <FullCalendar
-        ref={calendarRef}
-        plugins={[dayGridPlugin, interactionPlugin] as any}
-        initialView="dayGridMonth"
-        events={events}
-        locale="ru"
-        firstDay={1}
-        datesSet={(arg) => {
-          const currentMonthDate = arg.view.currentStart;
-          fetchEvents(currentMonthDate.getFullYear(), currentMonthDate.getMonth() + 1);
-        }}
-        eventClick={handleEventClick}
-        height="auto"
-      />
+      {/* Сетка календаря */}
+      <div style={{ width: '100%' }}>
+        <FullCalendar
+          ref={calendarRef}
+          plugins={[dayGridPlugin, interactionPlugin] as any}
+          initialView="dayGridMonth"
+          events={events}
+          locale="ru"
+          firstDay={1}
+          datesSet={(arg) => {
+            const currentMonthDate = arg.view.currentStart;
+            fetchEvents(currentMonthDate.getFullYear(), currentMonthDate.getMonth() + 1);
+          }}
+          eventClick={handleEventClick}
+          height="auto"
+        />
+      </div>
 
-      {/* Модальное окно для штаба и командиров */}
+      {/* Модальное окно для штаба/командиров */}
       {isModalOpen && selectedEvent && (
         <div style={modalOverlayStyle}>
           <div style={modalBoxStyle}>
@@ -174,22 +232,28 @@ export default function Calendar() {
 
             <hr style={{ margin: '15px 0', borderColor: '#eee' }} />
 
-            {/* Блок для самозаписи проверяющего */}
             <div style={{ marginBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '14px' }}>
-                Ваш статус участия: <b>{selectedEvent.isRegistered ? 'Вы записаны' : 'Вы не записаны'}</b>
+                Ваш статус: <b>{selectedEvent.isRegistered ? 'Вы записаны' : 'Вы не записаны'}</b>
               </span>
               {!selectedEvent.isRegistered && (
                 <button
                   onClick={() => registerForEvent(selectedEvent.id)}
-                  style={{ padding: '6px 12px', cursor: 'pointer', background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px' }}
+                  style={{
+                    padding: '6px 12px',
+                    cursor: 'pointer',
+                    background: '#007bff',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '4px',
+                  }}
                 >
                   Записаться самому
                 </button>
               )}
             </div>
 
-            <h4 style={{ margin: '15px 0 10px 0' }}>Список записавшихся сотрудников:</h4>
+            <h4 style={{ margin: '15px 0 10px 0' }}>Список записавшихся:</h4>
 
             {loadingParticipants ? (
               <p style={{ color: '#666' }}>Загрузка списка участников...</p>
