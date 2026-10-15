@@ -4,6 +4,7 @@ import Calendar from './pages/Calendar';
 import Rating from './pages/Rating'; 
 import Employees from './pages/Employees'; 
 import Explanatories from './pages/Explanatories';
+import Duties from './pages/Duties';
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
         <Route path="/rating" element={<Rating />} />
         <Route path="/employees" element={<Employees />} />
         <Route path="/explanatories" element={<Explanatories />} />
+        <Route path="/duties" element={<Duties />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>

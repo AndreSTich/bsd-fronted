@@ -260,6 +260,10 @@ export default function Calendar() {
             Объяснительные →
           </a>
 
+          <a href="/duties" style={{ textDecoration: 'none', color: '#007bff', fontWeight: 'bold' }}>
+            Дежурства →
+          </a>
+
           <a
             href="/rating"
             style={{ textDecoration: 'none', color: '#007bff', fontWeight: 'bold' }}
