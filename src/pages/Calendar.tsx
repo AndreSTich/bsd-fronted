@@ -217,14 +217,18 @@ export default function Calendar() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          {isHQ && ( 
-            <a href="/employees" style={{ textDecoration: 'none', color: '#007bff', fontWeight: 'bold' }}> 
-            Управление составом → 
-            </a> 
+          {isHQ && (
+            <a href="/employees" style={{ textDecoration: 'none', color: '#007bff', fontWeight: 'bold' }}>
+              Управление составом
+            </a>
           )}
 
+          <a href="/explanatories" style={{ textDecoration: 'none', color: '#007bff', fontWeight: 'bold' }}>
+            Объяснительные
+          </a>
+
           <a href="/rating" style={{ textDecoration: 'none', color: '#007bff', fontWeight: 'bold' }}>
-            Перейти к рейтингу →
+            Перейти к рейтингу
           </a>
           <button
             onClick={handleLogout}

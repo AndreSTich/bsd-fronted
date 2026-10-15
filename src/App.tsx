@@ -3,6 +3,7 @@ import Login from './pages/Login';
 import Calendar from './pages/Calendar';
 import Rating from './pages/Rating'; 
 import Employees from './pages/Employees'; 
+import Explanatories from './pages/Explanatories';
 
 function App() {
   return (
@@ -12,6 +13,7 @@ function App() {
         <Route path="/calendar" element={<Calendar />} />
         <Route path="/rating" element={<Rating />} />
         <Route path="/employees" element={<Employees />} />
+        <Route path="/explanatories" element={<Explanatories />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>
