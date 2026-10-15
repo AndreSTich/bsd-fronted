@@ -217,6 +217,12 @@ export default function Calendar() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          {isHQ && ( 
+            <a href="/employees" style={{ textDecoration: 'none', color: '#007bff', fontWeight: 'bold' }}> 
+            Управление составом → 
+            </a> 
+          )}
+
           <a href="/rating" style={{ textDecoration: 'none', color: '#007bff', fontWeight: 'bold' }}>
             Перейти к рейтингу →
           </a>
