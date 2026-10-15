@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -8,7 +8,7 @@ import { apiClient } from '../api/apiClient';
 interface EventDto {
   id: number;
   title: string;
-  type: string;
+  type?: string;
   date: string;
   time: string;
   location: string;
@@ -36,7 +36,7 @@ export default function Calendar() {
   const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false);
   const [loadingParticipants, setLoadingParticipants] = useState(false);
 
-  // Состояния формы создания мероприятия
+  // Состояния создания мероприятия
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newType, setNewType] = useState('мероприятие');
@@ -52,9 +52,9 @@ export default function Calendar() {
 
   const fetchEvents = async (year: number, month: number) => {
     try {
-      const response = await apiClient.get(`/Event/month?year=${year}&month=${month}`);
+      const response = await apiClient.get<EventDto[]>(`/Event/month?year=${year}&month=${month}`);
 
-      const formattedEvents = response.data.map((e: EventDto) => ({
+      const formattedEvents = response.data.map((e) => ({
         id: String(e.id),
         title: `${e.time.substring(0, 5)} - ${e.title}`,
         start: `${e.date}T${e.time}`,
@@ -65,7 +65,7 @@ export default function Calendar() {
 
       setEvents(formattedEvents);
     } catch (error) {
-      console.error('Ошибка загрузки мероприятий', error);
+      console.error('Ошибка при загрузке мероприятий:', error);
     }
   };
 
@@ -104,18 +104,18 @@ export default function Calendar() {
         await loadParticipants(eventId);
       }
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Произошла ошибка при записи');
+      alert(error.response?.data?.message || 'Произошла ошибка при записи.');
     }
   };
 
   const loadParticipants = async (eventId: number) => {
     setLoadingParticipants(true);
     try {
-      const response = await apiClient.get(`/Event/${eventId}/participants`);
+      const response = await apiClient.get<AttendanceDto[]>(`/Event/${eventId}/participants`);
       setParticipants(response.data);
     } catch (error) {
       console.error(error);
-      alert('Не удалось загрузить участников.');
+      alert('Не удалось загрузить список участников.');
     } finally {
       setLoadingParticipants(false);
     }
@@ -131,11 +131,31 @@ export default function Calendar() {
     if (!selectedEvent) return;
     try {
       await apiClient.post(`/Event/${selectedEvent.id}/attendance`, participants);
-      alert('Отметки сохранены, рейтинг обновлен!');
+      alert('Отметки сохранены, рейтинг пересчитан!');
       setIsAttendanceModalOpen(false);
       reloadCurrentMonth();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Ошибка сохранения отметок.');
+      alert(error.response?.data?.message || 'Ошибка при сохранении отметок.');
+    }
+  };
+
+  const handleDeleteEvent = async () => {
+    if (!selectedEvent) return;
+    if (
+      !window.confirm(
+        `Вы уверены, что хотите отменить мероприятие "${selectedEvent.title}"? Начисленные за него баллы будут списаны.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await apiClient.delete(`/Event/${selectedEvent.id}`);
+      alert('Мероприятие успешно отменено и удалено.');
+      setIsAttendanceModalOpen(false);
+      reloadCurrentMonth();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Ошибка при отмене мероприятия.');
     }
   };
 
@@ -144,7 +164,6 @@ export default function Calendar() {
     setCreateError('');
 
     try {
-      // Приводим время к формату "ЧЧ:ММ:СС"
       const formattedTime = newTime.length === 5 ? `${newTime}:00` : newTime;
 
       await apiClient.post('/Event', {
@@ -181,7 +200,7 @@ export default function Calendar() {
         gap: '20px',
       }}
     >
-      {/* Панель управления */}
+      {/* Верхняя панель управления */}
       <div
         style={{
           display: 'flex',
@@ -190,11 +209,18 @@ export default function Calendar() {
           width: '100%',
           borderBottom: '1px solid #eee',
           paddingBottom: '15px',
+          flexWrap: 'wrap',
+          gap: '15px',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <h2 style={{ margin: 0 }}>
-            Календарь мероприятий {role && <span style={{ fontSize: '14px', color: '#666', fontWeight: 'normal' }}>({role})</span>}
+            Календарь мероприятий{' '}
+            {role && (
+              <span style={{ fontSize: '14px', color: '#666', fontWeight: 'normal' }}>
+                ({role})
+              </span>
+            )}
           </h2>
 
           {isHQ && (
@@ -216,20 +242,31 @@ export default function Calendar() {
           )}
         </div>
 
+        {/* Навигация и выход */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           {isHQ && (
-            <a href="/employees" style={{ textDecoration: 'none', color: '#007bff', fontWeight: 'bold' }}>
-              Управление составом
+            <a
+              href="/employees"
+              style={{ textDecoration: 'none', color: '#007bff', fontWeight: 'bold' }}
+            >
+              Управление составом →
             </a>
           )}
 
-          <a href="/explanatories" style={{ textDecoration: 'none', color: '#007bff', fontWeight: 'bold' }}>
-            Объяснительные
+          <a
+            href="/explanatories"
+            style={{ textDecoration: 'none', color: '#007bff', fontWeight: 'bold' }}
+          >
+            Объяснительные →
           </a>
 
-          <a href="/rating" style={{ textDecoration: 'none', color: '#007bff', fontWeight: 'bold' }}>
-            Перейти к рейтингу
+          <a
+            href="/rating"
+            style={{ textDecoration: 'none', color: '#007bff', fontWeight: 'bold' }}
+          >
+            Рейтинг →
           </a>
+
           <button
             onClick={handleLogout}
             style={{
@@ -240,6 +277,7 @@ export default function Calendar() {
               borderRadius: '4px',
               cursor: 'pointer',
               fontWeight: 'bold',
+              fontSize: '13px',
             }}
           >
             Выйти
@@ -247,7 +285,7 @@ export default function Calendar() {
         </div>
       </div>
 
-      {/* Календарь */}
+      {/* Сетка календаря FullCalendar */}
       <div style={{ width: '100%' }}>
         <FullCalendar
           ref={calendarRef}
@@ -265,11 +303,18 @@ export default function Calendar() {
         />
       </div>
 
-      {/* Модальное окно создания мероприятия (только Штаб) */}
+      {/* Модальное окно создания мероприятия (только штаб) */}
       {isCreateModalOpen && (
         <div style={modalOverlayStyle}>
           <div style={modalBoxStyle}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '15px',
+              }}
+            >
               <h3 style={{ margin: 0 }}>Создание нового мероприятия</h3>
               <button
                 onClick={() => setIsCreateModalOpen(false)}
@@ -281,7 +326,9 @@ export default function Calendar() {
 
             <form onSubmit={handleCreateEvent} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px' }}>Название:</label>
+                <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px' }}>
+                  Название:
+                </label>
                 <input
                   type="text"
                   value={newTitle}
@@ -292,7 +339,9 @@ export default function Calendar() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px' }}>Тип события:</label>
+                <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px' }}>
+                  Тип события:
+                </label>
                 <select
                   value={newType}
                   onChange={(e) => setNewType(e.target.value)}
@@ -306,7 +355,9 @@ export default function Calendar() {
 
               <div style={{ display: 'flex', gap: '10px' }}>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px' }}>Дата:</label>
+                  <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px' }}>
+                    Дата:
+                  </label>
                   <input
                     type="date"
                     lang="ru-RU"
@@ -317,10 +368,13 @@ export default function Calendar() {
                   />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px' }}>Время:</label>
+                  <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px' }}>
+                    Время:
+                  </label>
                   <input
                     type="time"
                     lang="ru-RU"
+                    step="60"
                     value={newTime}
                     onChange={(e) => setNewTime(e.target.value)}
                     required
@@ -330,7 +384,9 @@ export default function Calendar() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px' }}>Место проведения:</label>
+                <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px' }}>
+                  Место проведения:
+                </label>
                 <input
                   type="text"
                   value={newLocation}
@@ -352,7 +408,15 @@ export default function Calendar() {
                 </button>
                 <button
                   type="submit"
-                  style={{ padding: '8px 16px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                  style={{
+                    padding: '8px 16px',
+                    background: '#28a745',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
+                  }}
                 >
                   Создать
                 </button>
@@ -362,7 +426,7 @@ export default function Calendar() {
         </div>
       )}
 
-      {/* Модальное окно журнала посещаемости */}
+      {/* Модальное окно журнала посещаемости / управления событием */}
       {isAttendanceModalOpen && selectedEvent && (
         <div style={modalOverlayStyle}>
           <div style={modalBoxStyle}>
@@ -383,6 +447,7 @@ export default function Calendar() {
 
             <hr style={{ margin: '15px 0', borderColor: '#eee' }} />
 
+            {/* Блок самозаписи проверяющего */}
             <div style={{ marginBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '14px' }}>
                 Ваш статус: <b>{selectedEvent.isRegistered ? 'Вы записаны' : 'Вы не записаны'}</b>
@@ -390,7 +455,14 @@ export default function Calendar() {
               {!selectedEvent.isRegistered && (
                 <button
                   onClick={() => registerForEvent(selectedEvent.id)}
-                  style={{ padding: '6px 12px', cursor: 'pointer', background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px' }}
+                  style={{
+                    padding: '6px 12px',
+                    cursor: 'pointer',
+                    background: '#007bff',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '4px',
+                  }}
                 >
                   Записаться самому
                 </button>
@@ -425,7 +497,9 @@ export default function Calendar() {
                           />
                         </td>
                         <td style={{ padding: '8px' }}>{p.fullName}</td>
-                        <td style={{ padding: '8px', color: '#666', fontSize: '13px' }}>{p.subdivisionTitle}</td>
+                        <td style={{ padding: '8px', color: '#666', fontSize: '13px' }}>
+                          {p.subdivisionTitle}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -433,29 +507,65 @@ export default function Calendar() {
               </div>
             )}
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-              <button
-                onClick={() => setIsAttendanceModalOpen(false)}
-                style={{ padding: '8px 16px', cursor: 'pointer', background: '#e0e0e0', border: 'none', borderRadius: '4px' }}
-              >
-                Отмена
-              </button>
-              {participants.length > 0 && (
+            {/* Подвал модалки: отмена встречи слева, закрытие и сохранение справа */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginTop: '20px',
+              }}
+            >
+              {isHQ ? (
                 <button
-                  onClick={handleSaveAttendance}
+                  onClick={handleDeleteEvent}
                   style={{
-                    padding: '8px 16px',
-                    cursor: 'pointer',
-                    background: '#28a745',
+                    padding: '8px 14px',
+                    backgroundColor: '#dc3545',
                     color: '#fff',
                     border: 'none',
                     borderRadius: '4px',
+                    cursor: 'pointer',
                     fontWeight: 'bold',
+                    fontSize: '12px',
                   }}
                 >
-                  Сохранить отметки (+10 баллов)
+                  Отменить мероприятие
                 </button>
+              ) : (
+                <div />
               )}
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  onClick={() => setIsAttendanceModalOpen(false)}
+                  style={{
+                    padding: '8px 16px',
+                    cursor: 'pointer',
+                    background: '#e0e0e0',
+                    border: 'none',
+                    borderRadius: '4px',
+                  }}
+                >
+                  Закрыть
+                </button>
+                {participants.length > 0 && (
+                  <button
+                    onClick={handleSaveAttendance}
+                    style={{
+                      padding: '8px 16px',
+                      cursor: 'pointer',
+                      background: '#28a745',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '4px',
+                      fontWeight: 'bold',
+                    }}
+                  >
+                    Сохранить отметки (+10 баллов)
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -480,8 +590,8 @@ const modalOverlayStyle: React.CSSProperties = {
 const modalBoxStyle: React.CSSProperties = {
   background: '#fff',
   borderRadius: '8px',
-  padding: '20px',
+  padding: '24px',
   width: '100%',
   maxWidth: '520px',
-  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+  boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
 };

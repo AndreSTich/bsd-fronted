@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/apiClient';
 
@@ -30,13 +30,17 @@ const COMMON_VIOLATIONS = [
 export default function Explanatories() {
   const navigate = useNavigate();
   const role = localStorage.getItem('role') || '';
-  const canApprove = role === 'командир' || role === 'штаб';
+  const isHQ = role === 'штаб';
+  const canApprove = role === 'командир' || isHQ;
 
   const [notes, setNotes] = useState<ExplanatoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Фильтры и поиск
+  const [searchQuery, setSearchQuery] = useState('');
   const [filterApproved, setFilterApproved] = useState<'all' | 'pending' | 'approved'>('all');
 
-  // Модальное окно подачи
+  // Форма подачи
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [disturberLastName, setDisturberLastName] = useState('');
   const [disturberFirstName, setDisturberFirstName] = useState('');
@@ -98,7 +102,7 @@ export default function Explanatories() {
   };
 
   const handleApprove = async (id: number) => {
-    if (!window.confirm('Утвердить объяснительную и начислить автору +5 баллов?')) return;
+    if (!window.confirm('Утвердить объяснительную и начислить сотруднику +5 баллов?')) return;
 
     try {
       const res = await apiClient.post(`/Explanatory/${id}/approve`);
@@ -109,11 +113,44 @@ export default function Explanatories() {
     }
   };
 
-  const filteredNotes = notes.filter((n) => {
-    if (filterApproved === 'pending') return !n.isApproved;
-    if (filterApproved === 'approved') return n.isApproved;
-    return true;
-  });
+  const handleDelete = async (id: number) => {
+    if (!window.confirm('Вы уверены, что хотите удалить эту объяснительную? Если за нее были начислены баллы, они спишутся.')) {
+      return;
+    }
+
+    try {
+      await apiClient.delete(`/Explanatory/${id}`);
+      alert('Объяснительная удалена.');
+      loadNotes();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Не удалось удалить запись.');
+    }
+  };
+
+  // Фильтрация и поиск
+  const filteredNotes = useMemo(() => {
+    return notes.filter((n) => {
+      const matchesStatus =
+        filterApproved === 'all'
+          ? true
+          : filterApproved === 'pending'
+          ? !n.isApproved
+          : n.isApproved;
+
+      const q = searchQuery.toLowerCase().trim();
+      const disturberFull = `${n.disturberLastName} ${n.disturberFirstName} ${n.disturberMiddleName || ''}`.toLowerCase();
+      
+      const matchesSearch =
+        !q ||
+        n.employeeFullName.toLowerCase().includes(q) ||
+        disturberFull.includes(q) ||
+        (n.disturberRoomNumber && n.disturberRoomNumber.toLowerCase().includes(q)) ||
+        n.disturberType.toLowerCase().includes(q) ||
+        n.subdivisionTitle.toLowerCase().includes(q);
+
+      return matchesStatus && matchesSearch;
+    });
+  }, [notes, filterApproved, searchQuery]);
 
   return (
     <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px', fontFamily: 'sans-serif' }}>
@@ -134,10 +171,12 @@ export default function Explanatories() {
         </div>
       </div>
 
-      {/* Панель действий */}
+      {/* Панель поиска, фильтрации и добавления */}
       <div
         style={{
           display: 'flex',
+          flexWrap: 'wrap',
+          gap: '12px',
           justifyContent: 'space-between',
           alignItems: 'center',
           background: '#f8f9fa',
@@ -146,14 +185,23 @@ export default function Explanatories() {
           marginBottom: '20px',
         }}
       >
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <label style={{ fontSize: '14px', fontWeight: 'bold' }}>Фильтр статуса:</label>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', flex: 1, alignItems: 'center' }}>
+          {/* Поле поиска */}
+          <input
+            type="text"
+            placeholder="Поиск (автор, нарушитель, комната, статья)..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{ padding: '8px 12px', borderRadius: '4px', border: '1px solid #ccc', minWidth: '280px' }}
+          />
+
+          {/* Фильтр по статусу */}
           <select
             value={filterApproved}
             onChange={(e: any) => setFilterApproved(e.target.value)}
-            style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #ccc' }}
+            style={{ padding: '8px 10px', borderRadius: '4px', border: '1px solid #ccc' }}
           >
-            <option value="all">Все записи</option>
+            <option value="all">Все статусы</option>
             <option value="pending">⏳ На рассмотрении</option>
             <option value="approved">✅ Утвержденные</option>
           </select>
@@ -190,7 +238,7 @@ export default function Explanatories() {
                 <th style={thStyle}>Комната</th>
                 <th style={thStyle}>Вид нарушения</th>
                 <th style={thStyle}>Статус / Проверяющий</th>
-                {canApprove && <th style={thStyle}>Действие</th>}
+                <th style={thStyle}>Действия</th>
               </tr>
             </thead>
             <tbody>
@@ -210,18 +258,18 @@ export default function Explanatories() {
                         ✅ {item.approverFullName}
                       </span>
                     ) : (
-                      <span style={{ color: '#ffc107', backgroundColor: '#fff3cd', padding: '3px 8px', borderRadius: '4px', fontWeight: 'bold' }}>
+                      <span style={{ color: '#856404', backgroundColor: '#fff3cd', padding: '3px 8px', borderRadius: '4px', fontWeight: 'bold', fontSize: '13px' }}>
                         ⏳ На рассмотрении
                       </span>
                     )}
                   </td>
-                  {canApprove && (
-                    <td style={{ padding: '10px 12px' }}>
-                      {!item.isApproved && (
+                  <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      {canApprove && !item.isApproved && (
                         <button
                           onClick={() => handleApprove(item.id)}
                           style={{
-                            padding: '6px 12px',
+                            padding: '6px 10px',
                             backgroundColor: '#28a745',
                             color: '#fff',
                             border: 'none',
@@ -234,14 +282,32 @@ export default function Explanatories() {
                           Утвердить (+5 б.)
                         </button>
                       )}
-                    </td>
-                  )}
+
+                      {/* Удаление доступно только штабу */}
+                      {isHQ && (
+                        <button
+                          onClick={() => handleDelete(item.id)}
+                          style={{
+                            padding: '6px 10px',
+                            backgroundColor: '#dc3545',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '12px',
+                          }}
+                        >
+                          Удалить
+                        </button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
               {filteredNotes.length === 0 && (
                 <tr>
-                  <td colSpan={canApprove ? 8 : 7} style={{ padding: '25px', textAlign: 'center', color: '#888' }}>
-                    Записи не найдены.
+                  <td colSpan={8} style={{ padding: '25px', textAlign: 'center', color: '#888' }}>
+                    Записи по вашему запросу не найдены.
                   </td>
                 </tr>
               )}
@@ -250,7 +316,7 @@ export default function Explanatories() {
         </div>
       )}
 
-      {/* Модальное окно подачи объяснительной */}
+      {/* Модальное окно создания */}
       {isModalOpen && (
         <div style={modalOverlayStyle}>
           <div style={modalBoxStyle}>
