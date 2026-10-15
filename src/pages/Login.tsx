@@ -13,16 +13,16 @@ export default function Login() {
     setError('');
 
     try {
-      // Отправляем запрос на наш C# бэкенд
       const response = await apiClient.post('/Auth/login', {
         logine: login,
-        password: password
+        password: password,
       });
 
-      // Сохраняем полученный JWT-токен
+      // Сохраняем токен, роль и ID для разграничения доступа
       localStorage.setItem('token', response.data.token);
+      localStorage.setItem('role', response.data.role);
+      localStorage.setItem('employeeId', String(response.data.employeeId));
 
-      // Перенаправляем пользователя в раздел мероприятий
       navigate('/calendar');
     } catch (err) {
       setError('Неверный логин или пароль. Проверьте данные.');

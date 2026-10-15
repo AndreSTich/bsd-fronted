@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 export const apiClient = axios.create({
-    baseURL: 'https://localhost:7230/api',
+    baseURL: '/api',
 });
 
 // проверка токена  перед каждым запросом 
