@@ -24,21 +24,31 @@ interface AttendanceDto {
 
 export default function Calendar() {
   const navigate = useNavigate();
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate('/login');
-  }
+  const calendarRef = useRef<FullCalendar | null>(null);
+
+  const role = localStorage.getItem('role') || '';
+  const isHQ = role === 'штаб';
+  const canManageAttendance = isHQ || role === 'командир';
 
   const [events, setEvents] = useState<any[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<EventDto | null>(null);
   const [participants, setParticipants] = useState<AttendanceDto[]>([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false);
   const [loadingParticipants, setLoadingParticipants] = useState(false);
 
-  const calendarRef = useRef<FullCalendar | null>(null);
+  // Состояния формы создания мероприятия
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [newType, setNewType] = useState('мероприятие');
+  const [newDate, setNewDate] = useState('');
+  const [newTime, setNewTime] = useState('');
+  const [newLocation, setNewLocation] = useState('');
+  const [createError, setCreateError] = useState('');
 
-  const role = localStorage.getItem('role') || '';
-  const canManageAttendance = role === 'штаб' || role === 'командир';
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate('/login');
+  };
 
   const fetchEvents = async (year: number, month: number) => {
     try {
@@ -55,7 +65,7 @@ export default function Calendar() {
 
       setEvents(formattedEvents);
     } catch (error) {
-      console.error('Ошибка при загрузке мероприятий', error);
+      console.error('Ошибка загрузки мероприятий', error);
     }
   };
 
@@ -71,18 +81,14 @@ export default function Calendar() {
     setSelectedEvent(event);
 
     if (canManageAttendance) {
-      // Штаб и командир открывают журнал посещаемости
       await loadParticipants(event.id);
-      setIsModalOpen(true);
+      setIsAttendanceModalOpen(true);
     } else {
-      // Обычный сотрудник записывается
       if (event.isRegistered) {
         alert('Вы уже записаны на это мероприятие!');
         return;
       }
-
-      const confirmMsg = `Записаться на "${clickInfo.event.title}"?\nМесто: ${event.location}`;
-      if (window.confirm(confirmMsg)) {
+      if (window.confirm(`Записаться на "${clickInfo.event.title}"?\nМесто: ${event.location}`)) {
         await registerForEvent(event.id);
       }
     }
@@ -108,8 +114,8 @@ export default function Calendar() {
       const response = await apiClient.get(`/Event/${eventId}/participants`);
       setParticipants(response.data);
     } catch (error) {
-      console.error('Ошибка при загрузке участников', error);
-      alert('Не удалось загрузить список участников.');
+      console.error(error);
+      alert('Не удалось загрузить участников.');
     } finally {
       setLoadingParticipants(false);
     }
@@ -123,15 +129,41 @@ export default function Calendar() {
 
   const handleSaveAttendance = async () => {
     if (!selectedEvent) return;
-
     try {
       await apiClient.post(`/Event/${selectedEvent.id}/attendance`, participants);
-      alert('Отметки сохранены, рейтинг пересчитан!');
-      setIsModalOpen(false);
+      alert('Отметки сохранены, рейтинг обновлен!');
+      setIsAttendanceModalOpen(false);
       reloadCurrentMonth();
     } catch (error: any) {
-      console.error('Ошибка при сохранении отметок', error);
       alert(error.response?.data?.message || 'Ошибка сохранения отметок.');
+    }
+  };
+
+  const handleCreateEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreateError('');
+
+    try {
+      // Приводим время к формату "ЧЧ:ММ:СС"
+      const formattedTime = newTime.length === 5 ? `${newTime}:00` : newTime;
+
+      await apiClient.post('/Event', {
+        title: newTitle,
+        type: newType,
+        date: newDate,
+        time: formattedTime,
+        location: newLocation,
+      });
+
+      alert('Мероприятие успешно создано!');
+      setIsCreateModalOpen(false);
+      setNewTitle('');
+      setNewLocation('');
+      setNewDate('');
+      setNewTime('');
+      reloadCurrentMonth();
+    } catch (err: any) {
+      setCreateError(err.response?.data?.message || 'Ошибка создания мероприятия.');
     }
   };
 
@@ -145,11 +177,11 @@ export default function Calendar() {
         fontFamily: 'sans-serif',
         boxSizing: 'border-box',
         display: 'flex',
-        flexDirection: 'column', // Гарантирует расположение шапки строго над календарем
+        flexDirection: 'column',
         gap: '20px',
       }}
     >
-      {/* Верхняя панель: заголовок слева, навигация и выход справа */}
+      {/* Панель управления */}
       <div
         style={{
           display: 'flex',
@@ -160,20 +192,32 @@ export default function Calendar() {
           paddingBottom: '15px',
         }}
       >
-        <h2 style={{ margin: 0 }}>
-          Календарь мероприятий{' '}
-          {canManageAttendance && (
-            <span style={{ fontSize: '14px', color: '#666', fontWeight: 'normal' }}>
-              ({role})
-            </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <h2 style={{ margin: 0 }}>
+            Календарь мероприятий {role && <span style={{ fontSize: '14px', color: '#666', fontWeight: 'normal' }}>({role})</span>}
+          </h2>
+
+          {isHQ && (
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              style={{
+                padding: '7px 14px',
+                backgroundColor: '#28a745',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '13px',
+              }}
+            >
+              + Создать мероприятие
+            </button>
           )}
-        </h2>
+        </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <a
-            href="/rating"
-            style={{ textDecoration: 'none', color: '#007bff', fontWeight: 'bold' }}
-          >
+          <a href="/rating" style={{ textDecoration: 'none', color: '#007bff', fontWeight: 'bold' }}>
             Перейти к рейтингу →
           </a>
           <button
@@ -193,7 +237,7 @@ export default function Calendar() {
         </div>
       </div>
 
-      {/* Сетка календаря */}
+      {/* Календарь */}
       <div style={{ width: '100%' }}>
         <FullCalendar
           ref={calendarRef}
@@ -203,16 +247,113 @@ export default function Calendar() {
           locale="ru"
           firstDay={1}
           datesSet={(arg) => {
-            const currentMonthDate = arg.view.currentStart;
-            fetchEvents(currentMonthDate.getFullYear(), currentMonthDate.getMonth() + 1);
+            const current = arg.view.currentStart;
+            fetchEvents(current.getFullYear(), current.getMonth() + 1);
           }}
           eventClick={handleEventClick}
           height="auto"
         />
       </div>
 
-      {/* Модальное окно для штаба/командиров */}
-      {isModalOpen && selectedEvent && (
+      {/* Модальное окно создания мероприятия (только Штаб) */}
+      {isCreateModalOpen && (
+        <div style={modalOverlayStyle}>
+          <div style={modalBoxStyle}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <h3 style={{ margin: 0 }}>Создание нового мероприятия</h3>
+              <button
+                onClick={() => setIsCreateModalOpen(false)}
+                style={{ border: 'none', background: 'none', fontSize: '18px', cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateEvent} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px' }}>Название:</label>
+                <input
+                  type="text"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  required
+                  style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px' }}>Тип события:</label>
+                <select
+                  value={newType}
+                  onChange={(e) => setNewType(e.target.value)}
+                  style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
+                >
+                  <option value="мероприятие">мероприятие</option>
+                  <option value="рейд">рейд</option>
+                  <option value="собрание">собрание</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px' }}>Дата:</label>
+                  <input
+                    type="date"
+                    lang="ru-RU"
+                    value={newDate}
+                    onChange={(e) => setNewDate(e.target.value)}
+                    required
+                    style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px' }}>Время:</label>
+                  <input
+                    type="time"
+                    lang="ru-RU"
+                    value={newTime}
+                    onChange={(e) => setNewTime(e.target.value)}
+                    required
+                    style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px' }}>Место проведения:</label>
+                <input
+                  type="text"
+                  value={newLocation}
+                  onChange={(e) => setNewLocation(e.target.value)}
+                  required
+                  style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              {createError && <div style={{ color: 'red', fontSize: '13px' }}>{createError}</div>}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsCreateModalOpen(false)}
+                  style={{ padding: '8px 16px', background: '#ccc', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                >
+                  Отмена
+                </button>
+                <button
+                  type="submit"
+                  style={{ padding: '8px 16px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                >
+                  Создать
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Модальное окно журнала посещаемости */}
+      {isAttendanceModalOpen && selectedEvent && (
         <div style={modalOverlayStyle}>
           <div style={modalBoxStyle}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -223,7 +364,7 @@ export default function Calendar() {
                 </p>
               </div>
               <button
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => setIsAttendanceModalOpen(false)}
                 style={{ border: 'none', background: 'none', fontSize: '18px', cursor: 'pointer' }}
               >
                 ✕
@@ -239,14 +380,7 @@ export default function Calendar() {
               {!selectedEvent.isRegistered && (
                 <button
                   onClick={() => registerForEvent(selectedEvent.id)}
-                  style={{
-                    padding: '6px 12px',
-                    cursor: 'pointer',
-                    background: '#007bff',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '4px',
-                  }}
+                  style={{ padding: '6px 12px', cursor: 'pointer', background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px' }}
                 >
                   Записаться самому
                 </button>
@@ -256,7 +390,7 @@ export default function Calendar() {
             <h4 style={{ margin: '15px 0 10px 0' }}>Список записавшихся:</h4>
 
             {loadingParticipants ? (
-              <p style={{ color: '#666' }}>Загрузка списка участников...</p>
+              <p style={{ color: '#666' }}>Загрузка списка...</p>
             ) : participants.length === 0 ? (
               <p style={{ color: '#888' }}>На это мероприятие пока никто не записался.</p>
             ) : (
@@ -291,7 +425,7 @@ export default function Calendar() {
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
               <button
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => setIsAttendanceModalOpen(false)}
                 style={{ padding: '8px 16px', cursor: 'pointer', background: '#e0e0e0', border: 'none', borderRadius: '4px' }}
               >
                 Отмена
